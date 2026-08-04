@@ -6,9 +6,11 @@ services:
     ports:
       - "8088:8080"
     environment:
-      # We commented this out so your appsettings.json link takes priority!
-      # - MongoDb__ConnectionString=mongodb://dairy-db:27017
+      - MongoDb__ConnectionString=mongodb+srv://naikamit6773_db_user:F4VdIVZdTg2Myhcw@cluster0.pifrqwv.mongodb.net/?appName=Cluster0
       - MongoDb__DatabaseName=DairyDB
+      - ServiceUrls__CommonService=http://host.docker.internal:8091
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   dairy-frontend:
     build:
@@ -18,4 +20,5 @@ services:
       - "4200:80"
     depends_on:
       - dairy-api
+
 

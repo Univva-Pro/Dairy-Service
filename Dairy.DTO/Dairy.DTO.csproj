@@ -3,12 +3,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- NuGet Package Configuration (Rule #4) -->
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>Dairy.DTO</PackageId>
-    <Version>1.0.0</Version>
-    <Authors>Dairy Team</Authors>
-    <Description>Data Transfer Objects for the Dairy ServiceHub API</Description>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MongoDB.Bson" Version="3.10.0" />

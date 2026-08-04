@@ -36,6 +36,20 @@
             </div>
         </div>
 
+        <!-- Edit Product Form Modal (Admin Only) -->
+        <div id="editProductModal" class="glass-container hidden" style="margin-bottom: 1.5rem;">
+            <h3>Edit Product</h3>
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <input type="text" id="editName" placeholder="Name">
+                <input type="number" id="editFat" placeholder="Fat Content %">
+                <input type="text" id="editTemp" placeholder="Storage Temp (e.g. 2°C - 4°C)">
+                <input type="number" id="editStock" placeholder="Stock Quantity">
+                <button id="updateProductBtn" class="btn-primary">Update Product</button>
+                <button id="cancelEditBtn" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+
         <div class="table-container glass-container">
             <table id="productsTable">
                 <thead>

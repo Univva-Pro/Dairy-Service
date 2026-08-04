@@ -1,6 +1,11 @@
 using Dairy.Context;
 using Dairy.DTO;
 using Dairy.DMO;
+using Common.Library.Models;
+using Common.Library.DTOs;
+using Common.Library.Data;
+using Common.Library.Extensions;
+using Common.Library.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,38 +28,14 @@ Console.WriteLine($"[STARTUP] Using MongoDB Connection: {connectionString}");
 Console.WriteLine($"[STARTUP] Using Database Name: {databaseName}");
 Console.WriteLine("====================================================");
 
-try 
-{
-    builder.Services.AddSingleton(new DairyRepository(connectionString, databaseName));
-    builder.Services.AddSingleton(new UserRepository(connectionString, databaseName));
-    Console.WriteLine("[STARTUP] Successfully connected to MongoDB and seeded collections!");
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"[FATAL ERROR] Could not connect to MongoDB. Is your IP whitelisted in Atlas? Error: {ex.Message}");
-}
+builder.Services.AddSingleton<DairyRepository>(sp => new DairyRepository(connectionString, databaseName));
+builder.Services.AddSingleton<UserRepository>(sp => new UserRepository(connectionString, databaseName));
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "ThisIsAVerySecretKeyForJwtAuthenticationWhichNeedsToBeLongEnough";
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "Dairy.ServiceHub",
-            ValidateAudience = false
-        };
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
-});
+builder.Services.AddCommonJwtAuthentication(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
@@ -97,11 +78,13 @@ app.MapPost("/api/auth/login", async (LoginRequest request, UserRepository userR
     return Results.Ok(new AuthResponse { Token = tokenHandler.WriteToken(token), Role = user.Role, Username = user.Username });
 });
 
-// Get Products (Accessible by both Admin and User, but returns different fields)
+// Get Products (Accessible by both Admin and User, returning role-based fields)
 app.MapGet("/api/dairy/products", async (DairyRepository repository, ClaimsPrincipal user) =>
 {
     var products = await repository.GetAllProductsAsync();
-    bool isAdmin = user.IsInRole("Admin");
+    bool isAdmin = user.IsInRole("Admin") ||
+                   user.HasClaim(c => (c.Type == ClaimTypes.Role || c.Type.ToLower() == "role") &&
+                                      c.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase));
 
     if (isAdmin)
     {
@@ -110,7 +93,7 @@ app.MapGet("/api/dairy/products", async (DairyRepository repository, ClaimsPrinc
             ProductId = p.Id.ToString(),
             Name = p.Name ?? "Unknown Product",
             FatContent = p.FatContentPercentage,
-            TemperatureRequired = p.StorageTemperatureRange,
+            TemperatureRequired = string.IsNullOrEmpty(p.StorageTemperatureRange) ? "2°C - 4°C" : p.StorageTemperatureRange,
             StockQuantity = p.StockQuantity,
             IsFresh = (DateTime.UtcNow - p.PasteurizationDate).TotalDays <= 14
         }).ToList();
@@ -127,7 +110,7 @@ app.MapGet("/api/dairy/products", async (DairyRepository repository, ClaimsPrinc
         }).ToList();
         return Results.Ok(response);
     }
-}).RequireAuthorization();
+}).AllowAnonymous();
 
 // Add Product (Admin Only)
 app.MapPost("/api/dairy/products", async (DairyProductRequest request, DairyRepository repository) =>
@@ -141,32 +124,85 @@ app.MapPost("/api/dairy/products", async (DairyProductRequest request, DairyRepo
         PasteurizationDate = DateTime.UtcNow
     };
     await repository.AddProductAsync(product);
+
+    var commonServiceUrl = builder.Configuration["ServiceUrls:CommonService"];
+
+    // Live Sync to Common-Service Master Inventory
+    _ = ProductSyncClient.SyncProductToCommonAsync(new ProductSyncPayload
+    {
+        OriginalId = product.Id.ToString(),
+        Name = product.Name,
+        Category = "Dairy",
+        Price = (decimal)(product.FatContentPercentage * 2.5),
+        StockQuantity = product.StockQuantity,
+        SourceService = "Dairy",
+        ActionType = "Add"
+    }, commonServiceUrl);
+
     return Results.Ok(product);
 }).RequireAuthorization("AdminOnly");
 
 // Update Product (Admin Only)
 app.MapPut("/api/dairy/products/{id}", async (string id, DairyProductRequest request, DairyRepository repository) =>
 {
+    var commonServiceUrl = builder.Configuration["ServiceUrls:CommonService"];
     var existing = await repository.GetProductAsync(id);
-    if (existing == null) return Results.NotFound();
+    if (existing == null)
+    {
+        existing = new DairyProduct
+        {
+            Name = request.Name,
+            FatContentPercentage = request.FatContentPercentage,
+            StorageTemperatureRange = request.StorageTemperatureRange,
+            StockQuantity = request.StockQuantity,
+            PasteurizationDate = DateTime.UtcNow
+        };
+        await repository.AddProductAsync(existing);
+    }
+    else
+    {
+        existing.Name = request.Name;
+        existing.FatContentPercentage = request.FatContentPercentage;
+        existing.StorageTemperatureRange = request.StorageTemperatureRange;
+        existing.StockQuantity = request.StockQuantity;
+        await repository.UpdateProductAsync(id, existing);
+    }
 
-    existing.Name = request.Name;
-    existing.FatContentPercentage = request.FatContentPercentage;
-    existing.StorageTemperatureRange = request.StorageTemperatureRange;
-    existing.StockQuantity = request.StockQuantity;
+    // Live Sync Update to Common-Service Master Inventory
+    _ = ProductSyncClient.SyncProductToCommonAsync(new ProductSyncPayload
+    {
+        OriginalId = id,
+        Name = existing.Name,
+        Category = "Dairy",
+        Price = (decimal)(existing.FatContentPercentage * 2.5),
+        StockQuantity = existing.StockQuantity,
+        SourceService = "Dairy",
+        ActionType = "Update"
+    }, commonServiceUrl);
 
-    await repository.UpdateProductAsync(id, existing);
-    return Results.Ok();
+    return Results.Ok(existing);
 }).RequireAuthorization("AdminOnly");
 
 // Delete Product (Admin Only)
 app.MapDelete("/api/dairy/products/{id}", async (string id, DairyRepository repository) =>
 {
+    var commonServiceUrl = builder.Configuration["ServiceUrls:CommonService"];
     var existing = await repository.GetProductAsync(id);
     if (existing == null) return Results.NotFound();
 
     await repository.DeleteProductAsync(id);
-    return Results.Ok();
+
+    // Live Sync Delete to Common-Service Master Inventory
+    _ = ProductSyncClient.SyncProductToCommonAsync(new ProductSyncPayload
+    {
+        OriginalId = id,
+        Name = existing.Name,
+        Category = "Dairy",
+        SourceService = "Dairy",
+        ActionType = "Delete"
+    }, commonServiceUrl);
+
+    return Results.Ok(new { message = "Product deleted successfully" });
 }).RequireAuthorization("AdminOnly");
 
 app.Run();

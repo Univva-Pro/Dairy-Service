@@ -1,4 +1,4 @@
-<Solution>
+                            <Solution>
   <Folder Name="/Infrastructure/">
     <File Path="Dockerfile" />
     <File Path="docker-compose.yml" />
