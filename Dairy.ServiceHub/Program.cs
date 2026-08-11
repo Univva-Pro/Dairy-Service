@@ -115,9 +115,34 @@ app.MapGet("/api/dairy/products", async (DairyRepository repository, ClaimsPrinc
 // Add Product (Admin Only)
 app.MapPost("/api/dairy/products", async (DairyProductRequest request, DairyRepository repository) =>
 {
+    var existingProducts = await repository.GetAllProductsAsync();
+    var existing = existingProducts.FirstOrDefault(p => !string.IsNullOrEmpty(p.Name) && p.Name.Trim().Equals(request.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    if (existing != null)
+    {
+        existing.FatContentPercentage = request.FatContentPercentage;
+        existing.StorageTemperatureRange = request.StorageTemperatureRange;
+        existing.StockQuantity = request.StockQuantity;
+        await repository.UpdateProductAsync(existing.Id.ToString(), existing);
+
+        var commonUrl = builder.Configuration["ServiceUrls:CommonService"];
+        _ = ProductSyncClient.SyncProductToCommonAsync(new ProductSyncPayload
+        {
+            OriginalId = existing.Id.ToString(),
+            Name = existing.Name,
+            Category = "Dairy",
+            Price = (decimal)(existing.FatContentPercentage * 2.5),
+            StockQuantity = existing.StockQuantity,
+            SourceService = "Dairy",
+            ActionType = "Update"
+        }, commonUrl);
+
+        return Results.Ok(existing);
+    }
+
     var product = new DairyProduct
     {
-        Name = request.Name,
+        Name = request.Name?.Trim() ?? "",
         FatContentPercentage = request.FatContentPercentage,
         StorageTemperatureRange = request.StorageTemperatureRange,
         StockQuantity = request.StockQuantity,
