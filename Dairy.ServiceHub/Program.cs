@@ -230,4 +230,6 @@ app.MapDelete("/api/dairy/products/{id}", async (string id, DairyRepository repo
     return Results.Ok(new { message = "Product deleted successfully" });
 }).RequireAuthorization("AdminOnly");
 
+app.MapFallbackToFile("index.html");
+
 app.Run();

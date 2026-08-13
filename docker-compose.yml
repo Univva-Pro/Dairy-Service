@@ -1,5 +1,5 @@
 services:
-  dairy-api:
+  dairy-service:
     build:
       context: .
       dockerfile: Dockerfile
@@ -11,14 +11,3 @@ services:
       - ServiceUrls__CommonService=http://host.docker.internal:8091
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  dairy-frontend:
-    build:
-      context: ./Dairy.Frontend
-      dockerfile: Dockerfile
-    ports:
-      - "4200:80"
-    depends_on:
-      - dairy-api
-
-
