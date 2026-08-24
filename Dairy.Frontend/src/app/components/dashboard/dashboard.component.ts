@@ -60,13 +60,32 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/login']);
   }
 
+  isEditing = false;
+  editingId: string | null = null;
+
   openModal(): void {
+    this.isEditing = false;
+    this.editingId = null;
+    this.showModal = true;
+  }
+
+  openEditModal(p: any): void {
+    this.isEditing = true;
+    this.editingId = p.productId || p.id || p.ProductId;
+    this.newProduct = {
+      name: p.name || '',
+      fatContentPercentage: p.fatContentPercentage ?? p.fatContent ?? 0,
+      storageTemperatureRange: p.storageTemperatureRange || p.temperatureRequired || '2°C - 4°C',
+      stockQuantity: p.stockQuantity ?? 0
+    };
     this.showModal = true;
   }
 
   closeModal(): void {
     this.showModal = false;
     this.isSubmitting = false;
+    this.isEditing = false;
+    this.editingId = null;
     this.newProduct = {
       name: '',
       fatContentPercentage: null,
@@ -89,17 +108,31 @@ export class DashboardComponent implements OnInit {
       stockQuantity: Number(this.newProduct.stockQuantity) || 0
     };
 
-    this.productService.addProduct(payload).subscribe({
-      next: () => {
-        this.isSubmitting = false;
-        this.closeModal();
-        this.loadProducts();
-      },
-      error: (err) => {
-        this.isSubmitting = false;
-        console.error('Error saving product:', err);
-      }
-    });
+    if (this.isEditing && this.editingId) {
+      this.productService.updateProduct(this.editingId, payload).subscribe({
+        next: () => {
+          this.isSubmitting = false;
+          this.closeModal();
+          this.loadProducts();
+        },
+        error: (err) => {
+          this.isSubmitting = false;
+          console.error('Error updating product:', err);
+        }
+      });
+    } else {
+      this.productService.addProduct(payload).subscribe({
+        next: () => {
+          this.isSubmitting = false;
+          this.closeModal();
+          this.loadProducts();
+        },
+        error: (err) => {
+          this.isSubmitting = false;
+          console.error('Error saving product:', err);
+        }
+      });
+    }
   }
 
   deleteProduct(item: any): void {

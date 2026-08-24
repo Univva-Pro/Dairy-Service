@@ -12,15 +12,15 @@
             <button *ngIf="isAdmin" (click)="openModal()" class="btn-primary">Add New Product</button>
         </div>
 
-        <!-- Add Product Form Modal -->
+        <!-- Add/Edit Product Form Modal -->
         <div *ngIf="showModal" class="glass-container" style="margin-bottom: 2rem;">
-            <h3>Add Product</h3>
+            <h3>{{ isEditing ? 'Edit Product' : 'Add Product' }}</h3>
             <div class="form-group">
                 <input type="text" [(ngModel)]="newProduct.name" placeholder="Name">
                 <input type="number" [(ngModel)]="newProduct.fatContentPercentage" placeholder="Fat Content %">
                 <input type="text" [(ngModel)]="newProduct.storageTemperatureRange" placeholder="Storage Temp (e.g. 2°C - 4°C)">
                 <input type="number" [(ngModel)]="newProduct.stockQuantity" placeholder="Stock Quantity">
-                <button (click)="saveProduct()" class="btn-primary">Save</button>
+                <button (click)="saveProduct()" class="btn-primary">{{ isEditing ? 'Update' : 'Save' }}</button>
                 <button (click)="closeModal()" class="btn-secondary">Cancel</button>
             </div>
         </div>
@@ -45,6 +45,7 @@
                         <td *ngIf="isAdmin">{{ p.stockQuantity }}</td>
                         <td>{{ p.isFresh ? 'Yes' : 'No' }}</td>
                         <td *ngIf="isAdmin">
+                            <button class="btn-primary btn-sm" style="margin-right: 5px;" (click)="openEditModal(p)">Edit</button>
                             <button class="btn-secondary btn-sm" (click)="deleteProduct(p)">Delete</button>
                         </td>
                     </tr>

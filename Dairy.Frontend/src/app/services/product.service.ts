@@ -28,4 +28,8 @@ export class ProductService {
   deleteProduct(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${id}`, { headers: this.getHeaders() });
   }
+
+  updateProduct(id: string, product: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/${id}`, product, { headers: this.getHeaders() });
+  }
 }
