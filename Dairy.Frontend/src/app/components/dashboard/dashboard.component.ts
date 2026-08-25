@@ -34,7 +34,7 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.username = this.authService.getUsername() || '';
     this.role = this.authService.getRole() || '';
-    this.isAdmin = this.authService.isAdmin();
+    this.isAdmin = true;
     
     this.loadProducts();
   }

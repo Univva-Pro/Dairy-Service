@@ -44,6 +44,7 @@ export class AuthService {
   }
 
   isAdmin() {
-    return this.getRole() === 'Admin';
+    const role = (this.getRole() || '').toLowerCase();
+    return role === 'admin';
   }
 }

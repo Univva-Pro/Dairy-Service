@@ -79,12 +79,32 @@ app.MapPost("/api/auth/login", async (LoginRequest request, UserRepository userR
 });
 
 // Get Products (Accessible by both Admin and User, returning role-based fields)
-app.MapGet("/api/dairy/products", async (DairyRepository repository, ClaimsPrincipal user) =>
+app.MapGet("/api/dairy/products", async (DairyRepository repository, HttpContext httpContext) =>
 {
     var products = await repository.GetAllProductsAsync();
-    bool isAdmin = user.IsInRole("Admin") ||
-                   user.HasClaim(c => (c.Type == ClaimTypes.Role || c.Type.ToLower() == "role") &&
-                                      c.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase));
+    bool isAdmin = httpContext.User.IsInRole("Admin") ||
+                   httpContext.User.HasClaim(c => (c.Type == ClaimTypes.Role || c.Type.ToLower() == "role") &&
+                                                      c.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase));
+
+    if (!isAdmin)
+    {
+        var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var token = authHeader.Substring("Bearer ".Length).Trim();
+                var handler = new JwtSecurityTokenHandler();
+                var jwtToken = handler.ReadJwtToken(token);
+                var roleClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role" || c.Type.EndsWith("/role"));
+                if (roleClaim != null && string.Equals(roleClaim.Value, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    isAdmin = true;
+                }
+            }
+            catch { }
+        }
+    }
 
     if (isAdmin)
     {

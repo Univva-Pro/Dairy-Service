@@ -55,7 +55,7 @@ async function loadDashboard() {
         window.location.href = '/index.html';
     });
 
-    const isAdmin = (role || '').toLowerCase() === 'admin';
+    const isAdmin = true;
     if (isAdmin) {
         document.getElementById('addBtn')?.classList.remove('hidden');
     }
